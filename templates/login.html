@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Login - AI Job Skill Gap Analyzer{% endblock %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 2rem auto;">
+    <div class="card fade-in">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🔐</div>
+            <h1 style="margin-bottom: 0.5rem;">Welcome Back</h1>
+            <p style="color: var(--text-secondary);">Sign in to your SkillAnalyzer account</p>
+        </div>
+
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash-message {{ category }}">{{ message }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+        </div>
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="email"><i class="fas fa-envelope"></i> Email Address</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password"><i class="fas fa-lock"></i> Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="remember" name="remember" style="width: auto;">
+                    <span style="color: var(--text-secondary);">Remember me</span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn" style="width: 100%; justify-content: center;">
+                <i class="fas fa-sign-in-alt"></i> Sign In
+            </button>
+        </form>
+
+        <div
+            style="text-align: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+            <p style="color: var(--text-secondary);">
+                Don't have an account?
+                <a href="{{ url_for('register') }}"
+                    style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
+                    Create one here
+                </a>
+            </p>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <div style="display: inline-flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted);">
+                <i class="fas fa-shield-alt"></i>
+                <span>Secure Login</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted);">
+                <i class="fas fa-bolt"></i>
+                <span>Fast Analysis</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted);">
+                <i class="fas fa-chart-line"></i>
+                <span>Track Progress</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

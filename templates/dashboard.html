@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Job Skill Gap Analyzer{% endblock %}
+
+{% block content %}
+<div class="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+</div>
+
+<div class="card fade-in" style="background: var(--bg-gradient); color: white; border: none;">
+    <div style="display: flex; justify-content: between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h1 style="margin-bottom: 0.5rem;">Welcome back, {{ current_user.first_name }}! 👋</h1>
+            <p style="opacity: 0.9;">Ready to analyze your next career opportunity?</p>
+        </div>
+        <a href="{{ url_for('analyze_page') }}" class="btn"
+            style="background: rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
+            <i class="fas fa-plus"></i> New Analysis
+        </a>
+    </div>
+</div>
+
+<div class="grid grid-2" style="margin-top: 2rem;">
+    <div class="card fade-in">
+        <div style="display: flex; align-items: center; justify-content: between; margin-bottom: 1.5rem;">
+            <h2 style="margin: 0;"><i class="fas fa-rocket"></i> Quick Analysis</h2>
+        </div>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+            Compare your resume with a job description to discover skill gaps and improvement opportunities.
+        </p>
+        <a href="{{ url_for('analyze_page') }}" class="btn" style="width: 100%; justify-content: center;">
+            <i class="fas fa-chart-bar"></i> Start New Analysis
+        </a>
+    </div>
+
+    <div class="card fade-in">
+        <div style="display: flex; align-items: center; justify-content: between; margin-bottom: 1.5rem;">
+            <h2 style="margin: 0;"><i class="fas fa-history"></i> Recent Analyses</h2>
+        </div>
+
+        {% if analyses %}
+        <div style="max-height: 400px; overflow-y: auto;">
+            {% for analysis in analyses %}
+            <div class="analysis-item"
+                style="border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; transition: all 0.3s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">{{ analysis.job_title }}</div>
+                        {% if analysis.company %}
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">at {{ analysis.company }}</div>
+                        {% endif %}
+                    </div>
+                    <div
+                        style="background: var(--bg-gradient); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">
+                        {{ "%.1f"|format(analysis.match_score) }}%
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        {{ analysis.created_at.strftime('%b %d, %Y') }}
+                    </div>
+                    <a href="{{ url_for('view_analysis', analysis_id=analysis.id) }}"
+                        style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;">
+                        View Details <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+            <p>No analyses yet</p>
+            <p>Start your first analysis to see your results here!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card fade-in" style="margin-top: 2rem;">
+    <h2 style="margin-bottom: 1.5rem;"><i class="fas fa-trophy"></i> Your Progress</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div style="text-align: center; padding: 1.5rem; background: var(--bg-secondary); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">{{ analyses|length }}</div>
+            <div style="color: var(--text-secondary);">Total Analyses</div>
+        </div>
+        <div style="text-align: center; padding: 1.5rem; background: var(--bg-secondary); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #10b981;">
+                {% if analyses %}{{ "%.1f"|format(analyses|map(attribute='match_score')|max) }}%{% else %}0%{% endif %}
+            </div>
+            <div style="color: var(--text-secondary);">Best Match</div>
+        </div>
+        <div style="text-align: center; padding: 1.5rem; background: var(--bg-secondary); border-radius: 10px;">
+            <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;">
+                {% if analyses %}{{ analyses|length }}{% else %}0{% endif %}
+            </div>
+            <div style="color: var(--text-secondary);">Companies</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

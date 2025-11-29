@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Details - {{ analysis.job_title }}{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="padding: 10px 15px;">
+        <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+        <h1 style="margin-bottom: 0.25rem;">📊 Analysis Details</h1>
+        <p style="color: var(--text-secondary);">Detailed breakdown of your skill match analysis</p>
+    </div>
+</div>
+
+<div class="card fade-in">
+    <div class="analysis-header"
+        style="border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem; margin-bottom: 2rem;">
+        <h2 style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fas fa-briefcase"></i> {{ analysis.job_title }}
+        </h2>
+        {% if analysis.company %}
+        <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">
+            <i class="fas fa-building"></i> {{ analysis.company }}
+        </p>
+        {% endif %}
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+            <i class="fas fa-calendar"></i> Analyzed on {{ analysis.created_at.strftime('%B %d, %Y at %H:%M') }}
+        </p>
+    </div>
+
+    <div style="text-align: center; margin: 3rem 0;">
+        <div class="score-circle" style="--score-percent: {{ results.match_score }}%">
+            <div class="score-text">{{ "%.1f"|format(results.match_score) }}%</div>
+        </div>
+        <h3 style="margin-bottom: 0.5rem;">Overall Match Score</h3>
+        <p style="color: var(--text-secondary); font-size: 1.1rem;">{{ results.match_interpretation }}</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 3rem 0;">
+        <div class="card" style="background: var(--success-bg); border-color: var(--success-border);">
+            <h4 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: #10b981;">
+                <i class="fas fa-check-circle"></i> Matching Skills
+                <span
+                    style="background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem;">
+                    {{ results.matching_skills|length }}
+                </span>
+            </h4>
+            <div class="skills-list">
+                {% for skill in results.matching_skills %}
+                <span class="skill-item matching">{{ skill }}</span>
+                {% endfor %}
+                {% if not results.matching_skills %}
+                <p style="color: var(--text-muted); text-align: center; padding: 1rem;">No matching skills found</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card" style="background: var(--error-bg); border-color: var(--error-border);">
+            <h4 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: #ef4444;">
+                <i class="fas fa-exclamation-triangle"></i> Skills to Develop
+                <span
+                    style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem;">
+                    {{ results.missing_skills|length }}
+                </span>
+            </h4>
+            <div class="categorized-gaps">
+                {% if results.categorized_gaps %}
+                {% for category, skills in results.categorized_gaps.items() %}
+                <div style="margin-bottom: 1rem;">
+                    <h5
+                        style="color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: capitalize; font-size: 0.9rem;">
+                        {{ category.replace('_', ' ') }}
+                    </h5>
+                    <div>
+                        {% for skill in skills %}
+                        <span class="skill-item missing">{{ skill }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p style="color: var(--text-muted); text-align: center; padding: 1rem;">No significant skill gaps found!
+                    Excellent!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if results.jd_skills or results.resume_skills %}
+    <div style="margin-top: 3rem;">
+        <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fas fa-list-alt"></i> Detailed Breakdown
+        </h3>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div class="card" style="background: var(--bg-secondary);">
+                <h4 style="margin-bottom: 1rem; color: var(--text-primary);">
+                    <i class="fas fa-file-alt"></i> Job Description Skills
+                </h4>
+                <div style="max-height: 200px; overflow-y: auto;">
+                    {% for skill in results.jd_skills %}
+                    <span class="skill-item">{{ skill }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card" style="background: var(--bg-secondary);">
+                <h4 style="margin-bottom: 1rem; color: var(--text-primary);">
+                    <i class="fas fa-user"></i> Your Resume Skills
+                </h4>
+                <div style="max-height: 200px; overflow-y: auto;">
+                    {% for skill in results.resume_skills %}
+                    <span class="skill-item">{{ skill }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="text-align: center; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+        <a href="{{ url_for('analyze_page') }}" class="btn" style="margin-right: 1rem;">
+            <i class="fas fa-plus"></i> New Analysis
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-home"></i> Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Add subtle animation to the score circle
+        const scoreCircle = document.querySelector('.score-circle');
+        scoreCircle.style.animation = 'fadeIn 0.8s ease-out';
+    });
+</script>
+{% endblock %}

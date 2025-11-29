@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}New Analysis - AI Job Skill Gap Analyzer{% endblock %}
+
+{% block content %}
+<div class="flash-messages">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+</div>
+
+<div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="padding: 10px 15px;">
+        <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+        <h1 style="margin-bottom: 0.25rem;">🔍 New Skill Gap Analysis</h1>
+        <p style="color: var(--text-secondary);">Compare your resume with a job description to discover opportunities
+            for growth</p>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card fade-in">
+        <h2 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fas fa-edit"></i> Input Details
+        </h2>
+
+        <form id="analysisForm">
+            <div class="form-group">
+                <label for="job_title"><i class="fas fa-briefcase"></i> Job Title</label>
+                <input type="text" id="job_title" name="job_title" placeholder="e.g., Senior Python Developer" required>
+            </div>
+
+            <div class="form-group">
+                <label for="company"><i class="fas fa-building"></i> Company (Optional)</label>
+                <input type="text" id="company" name="company" placeholder="e.g., Google, Amazon, etc.">
+            </div>
+
+            <div class="form-group">
+                <label for="job_description"><i class="fas fa-file-alt"></i> Job Description</label>
+                <textarea id="job_description" name="job_description"
+                    placeholder="Paste the complete job description here...&#10;&#10;Example:&#10;We're looking for a Python developer with Django experience.&#10;Required: Python, SQL, REST APIs&#10;Nice to have: AWS, Docker, React"
+                    required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="resume_text"><i class="fas fa-user"></i> Your Resume/CV</label>
+                <textarea id="resume_text" name="resume_text"
+                    placeholder="Paste your resume text here...&#10;&#10;Example:&#10;Experienced software developer with 3 years in Python.&#10;Proficient in Flask and REST API development.&#10;Strong knowledge of Git and SQL."
+                    required></textarea>
+            </div>
+
+            <button type="submit" id="analyzeBtn" class="btn" style="width: 100%; justify-content: center;">
+                <i class="fas fa-chart-bar"></i> Analyze Skill Gap
+            </button>
+        </form>
+    </div>
+
+    <div class="card fade-in">
+        <h2 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fas fa-chart-bar"></i> Analysis Results
+        </h2>
+
+        <div id="loading" style="text-align: center; padding: 3rem; display: none;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">
+                <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            <h3 style="margin-bottom: 0.5rem;">Analyzing Your Skills</h3>
+            <p style="color: var(--text-secondary);">This may take a few seconds...</p>
+        </div>
+
+        <div id="error" class="flash-message error" style="display: none;"></div>
+
+        <div id="results" style="display: none;">
+            <div style="text-align: center; margin: 2rem 0;">
+                <div class="score-circle" id="scoreCircle">
+                    <div class="score-text" id="scoreText">0%</div>
+                </div>
+                <h3 style="margin-bottom: 0.5rem;">Overall Match Score</h3>
+                <p id="interpretation" style="color: var(--text-secondary);"></p>
+            </div>
+
+            <div style="margin: 2rem 0;">
+                <h4 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                    <i class="fas fa-check-circle" style="color: #10b981;"></i> Your Matching Skills
+                </h4>
+                <div id="matchingSkills" class="skills-list"></div>
+            </div>
+
+            <div style="margin: 2rem 0;">
+                <h4 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                    <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i> Skills to Develop
+                </h4>
+                <div id="categorizedGaps"></div>
+            </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-home"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+
+        <div id="placeholder" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">📊</div>
+            <h3 style="margin-bottom: 0.5rem;">Ready for Analysis</h3>
+            <p>Fill out the form and click "Analyze Skill Gap" to see your results here</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('analysisForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const error = document.getElementById('error');
+        const placeholder = document.getElementById('placeholder');
+
+        // Show loading, hide other elements
+        loading.style.display = 'block';
+        results.style.display = 'none';
+        error.style.display = 'none';
+        placeholder.style.display = 'none';
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+
+        try {
+            const formData = new FormData(this);
+
+            const response = await fetch('/analyze', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            // Display results
+            displayResults(data);
+
+        } catch (err) {
+            error.textContent = err.message;
+            error.style.display = 'block';
+            placeholder.style.display = 'block';
+        } finally {
+            loading.style.display = 'none';
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = '<i class="fas fa-chart-bar"></i> Analyze Skill Gap';
+        }
+    });
+
+    function displayResults(data) {
+        // Update match score
+        const score = data.match_score;
+        document.getElementById('scoreText').textContent = score + '%';
+        document.getElementById('scoreCircle').style.setProperty('--score-percent', score + '%');
+        document.getElementById('interpretation').textContent = data.match_interpretation;
+
+        // Display matching skills
+        const matchingSkills = document.getElementById('matchingSkills');
+        matchingSkills.innerHTML = data.matching_skills.map(skill =>
+            `<span class="skill-item matching">${skill}</span>`
+        ).join('') || '<p style="color: var(--text-muted);">No matching skills found</p>';
+
+        // Display categorized gaps
+        const categorizedGaps = document.getElementById('categorizedGaps');
+        let gapsHTML = '';
+
+        if (Object.keys(data.categorized_gaps).length > 0) {
+            for (const [category, skills] of Object.entries(data.categorized_gaps)) {
+                gapsHTML += `
+                    <div style="margin-bottom: 1.5rem;">
+                        <h5 style="color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: capitalize;">
+                            ${category.replace('_', ' ')}
+                        </h5>
+                        <div>
+                            ${skills.map(skill => `<span class="skill-item missing">${skill}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            gapsHTML = '<p style="color: var(--text-muted);">No significant skill gaps found! Great job!</p>';
+        }
+
+        categorizedGaps.innerHTML = gapsHTML;
+
+        // Show results section
+        document.getElementById('results').style.display = 'block';
+    }
+</script>
+{% endblock %}

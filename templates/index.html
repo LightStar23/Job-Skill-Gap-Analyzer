@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome - AI Job Skill Gap Analyzer{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 4rem 0;">
+    <div class="fade-in">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">🤖</div>
+        <h1
+            style="font-size: 3.5rem; margin-bottom: 1rem; background: var(--bg-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+            AI Job Skill Gap Analyzer
+        </h1>
+        <p style="font-size: 1.3rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto 3rem;">
+            Discover your skill gaps and land your dream job with AI-powered analysis
+        </p>
+
+        <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 4rem; flex-wrap: wrap;">
+            <a href="{{ url_for('login') }}" class="btn" style="padding: 15px 30px;">
+                <i class="fas fa-sign-in-alt"></i> Login
+            </a>
+            <a href="{{ url_for('register') }}" class="btn btn-secondary" style="padding: 15px 30px;">
+                <i class="fas fa-user-plus"></i> Sign Up Free
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-2" style="max-width: 1000px; margin: 0 auto;">
+        <div class="card fade-in">
+            <div style="font-size: 2.5rem; margin-bottom: 1rem;">🔍</div>
+            <h3 style="margin-bottom: 1rem;">Smart Analysis</h3>
+            <p style="color: var(--text-secondary);">AI-powered skill extraction and matching using advanced NLP
+                algorithms</p>
+        </div>
+
+        <div class="card fade-in">
+            <div style="font-size: 2.5rem; margin-bottom: 1rem;">📊</div>
+            <h3 style="margin-bottom: 1rem;">Detailed Insights</h3>
+            <p style="color: var(--text-secondary);">Comprehensive gap analysis with actionable recommendations</p>
+        </div>
+
+        <div class="card fade-in">
+            <div style="font-size: 2.5rem; margin-bottom: 1rem;">💾</div>
+            <h3 style="margin-bottom: 1rem;">Progress Tracking</h3>
+            <p style="color: var(--text-secondary);">Save your analyses and track your skill development over time</p>
+        </div>
+
+        <div class="card fade-in">
+            <div style="font-size: 2.5rem; margin-bottom: 1rem;">🎯</div>
+            <h3 style="margin-bottom: 1rem;">Career Growth</h3>
+            <p style="color: var(--text-secondary);">Identify exactly what skills you need for your target roles</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
