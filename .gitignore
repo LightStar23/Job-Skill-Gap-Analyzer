@@ -1,0 +1,171 @@
+# ============================
+# PYTHON COMPILATION / CACHE
+# ============================
+__pycache__/
+*.py[cod]
+*.so
+*$py.class
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+*.pyo
+*.pyd
+
+# ============================
+# Jupyter Notebook
+# ============================
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# ============================
+# Environments
+# ============================
+ENV/
+.venv/
+.venv
+venv/
+.env/
+.env
+env/
+*.conda
+*.virtualenv
+
+# ============================
+# MACHINE LEARNING & NLP ASSETS
+# ============================
+
+# ============================
+# Model, dataset, and binary files
+# ============================
+models/
+*/models/
+*.pt
+*.pth
+*.h5
+*.ckpt
+*.bin
+*.npz
+*.npy
+*.joblib
+*.pkl
+
+# ============================
+# HuggingFace cache
+# ============================
+huggingface/
+.huggingface/
+
+# ============================
+# SpaCy models
+# ============================
+*.model
+*.spacy
+*.jsonl
+
+# ============================
+# Transformers tokenizer files
+# ============================
+tokenizer.json
+vocab.json
+merges.txt
+special_tokens_map.json
+added_tokens.json
+
+# ============================
+# DATA & DATASETS
+# ============================
+data/
+*/data/
+datasets/
+*/datasets/
+raw_data/
+*/raw_data/
+*.csv
+*.xlsx
+*.xls
+*.tsv
+*.jsonl
+*.parquet
+*.feather
+*.zip
+*.tar
+*.gz
+*.rar
+
+# ============================
+# Logs and databases, Temp Files
+# ============================
+*.log
+logs/
+*.txt~
+*.tmp
+tmp/
+temp/
+*.sqlite3
+
+# ============================
+# Training Outputs
+# ============================
+runs/
+wandb/
+mlruns/
+
+# ============================
+# OS / IDEs
+# ============================
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ============================
+# PyCharm
+# ============================
+*.iml
+*.ipr
+*.iws
+
+# ============================
+# OS files
+# ============================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================
+# CONFIG / SECRETS
+# ============================
+.env
+.env.*
+*.ini
+*.cfg
+config.yaml
+config.json
+secret.key
+
+# ============================
+# Distribution / packaging
+# ============================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ============================
+# BYTE-COMPILED / CACHES
+# ============================
+*.pyc
+.ipynb_checkpoints/
+
+# If you want small sample dataset: whitelist this folder
+!data/sample/
+
+!datasets/sample/
+
+
+# ============================
+My Ignore Files
+# ============================
+instance/
+job_analyzer.db
+*.db
