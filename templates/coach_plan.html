@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+
+{% block title %}Coaching Plan - {{ coaching_plan.summary }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>🎯 Your Personalized Coaching Plan</h1>
+            <p class="text-muted">{{ coaching_plan.summary }}</p>
+        </div>
+        <div class="col-md-4 text-right">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h3 class="card-title">Progress</h3>
+                    <div class="progress mb-2" style="height: 25px;">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ progress.progress_percentage }}%"
+                             aria-valuenow="{{ progress.progress_percentage }}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                            {{ progress.progress_percentage }}%
+                        </div>
+                    </div>
+                    <small class="text-muted">{{ progress.completed_milestones|length }} of {{ progress.total_milestones }} milestones</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coach's Message -->
+    <div class="alert alert-info" role="alert">
+        <h4 class="alert-heading">💬 Coach's Opening Message</h4>
+        <p>{{ coaching_plan.human_message }}</p>
+    </div>
+
+    <!-- Confidence & Explainability -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Plan Confidence</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress" style="height: 30px;">
+                        <div class="progress-bar {% if coaching_plan.confidence >= 0.8 %}bg-success{% elif coaching_plan.confidence >= 0.6 %}bg-info{% else %}bg-warning{% endif %}" 
+                             style="width: {{ coaching_plan.confidence * 100 }}%">
+                            {{ (coaching_plan.confidence * 100)|round|int }}%
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-2">{{ coaching_plan.explainability }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📋 Next Actions (72 hours)</h5>
+                </div>
+                <div class="card-body">
+                    <ol class="small">
+                        {% for action in coaching_plan.next_actions_72h %}
+                        <li class="mb-2">{{ action }}</li>
+                        {% endfor %}
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prioritized Learning Path -->
+    <h2 class="mt-5">📚 Your Learning Path</h2>
+    <div class="accordion mb-4" id="learningPathAccordion">
+        {% for milestone in coaching_plan.prioritized_path %}
+        <div class="card">
+            <div class="card-header" id="heading{{ milestone.milestone_id }}">
+                <h5 class="mb-0">
+                    <button class="btn btn-link" type="button" data-toggle="collapse" 
+                            data-target="#collapse{{ milestone.milestone_id }}" 
+                            aria-expanded="true" aria-controls="collapse{{ milestone.milestone_id }}">
+                        {% if milestone.milestone_id in progress.completed_milestones %}
+                            ✅
+                        {% else %}
+                            ▶️
+                        {% endif %}
+                        {{ milestone.title }}
+                        <span class="badge badge-primary ml-2">{{ milestone.time_estimate_weeks }} weeks</span>
+                    </button>
+                </h5>
+            </div>
+            <div id="collapse{{ milestone.milestone_id }}" class="collapse" 
+                 aria-labelledby="heading{{ milestone.milestone_id }}" 
+                 data-parent="#learningPathAccordion">
+                <div class="card-body">
+                    <p><strong>Why this matters:</strong> {{ milestone.why }}</p>
+                    
+                    <h6>Skills Targeted:</h6>
+                    <div class="mb-3">
+                        {% for skill in milestone.skills_targeted %}
+                        <span class="badge badge-info">{{ skill }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <h6>Practice Tasks:</h6>
+                    <ul>
+                        {% for task in milestone.practice_tasks %}
+                        <li>
+                            <strong>{{ task.task }}</strong>
+                            <br><small class="text-muted">✓ Acceptance: {{ task.acceptance_criteria }}</small>
+                            <br><small class="text-muted">⏱️ Est. {{ task.est_hours }} hours</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    
+                    <h6>Recommended Resources:</h6>
+                    <div class="list-group">
+                        {% for resource in milestone.resources %}
+                        <a href="{{ resource.url }}" target="_blank" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    {% if resource.type == 'project' %}📁
+                                    {% elif resource.type == 'course' %}📖
+                                    {% elif resource.type == 'video' %}🎬
+                                    {% elif resource.type == 'article' %}📰
+                                    {% elif resource.type == 'book' %}📚
+                                    {% elif resource.type == 'repo' %}💻
+                                    {% else %}🔗
+                                    {% endif %}
+                                    {{ resource.title }}
+                                </h6>
+                                <span class="badge {% if resource.cost == 'free' %}badge-success{% else %}badge-warning{% endif %}">
+                                    {{ resource.cost|capitalize }}
+                                </span>
+                            </div>
+                            <small>{{ resource.type|capitalize }}</small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    
+                    <h6 class="mt-3">Validation Metric:</h6>
+                    <p class="small">
+                        <strong>{{ milestone.validation.metric }}</strong><br>
+                        <em>✓ Pass if: {{ milestone.validation.threshold }}</em>
+                    </p>
+                    
+                    <!-- Progress Tracking -->
+                    <button class="btn btn-sm btn-success mt-3" 
+                            onclick="markMilestoneComplete('{{ milestone.milestone_id }}')">
+                        Mark as Complete
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Obsolete Skills Warning -->
+    {% if coaching_plan.obsolete_skills %}
+    <div class="alert alert-warning mt-4" role="alert">
+        <h4 class="alert-heading">⚠️ Heads Up: Outdated Skills</h4>
+        <p>Some skills you're focusing on may have lower ROI. Consider pivoting:</p>
+        <ul>
+            {% for obsolete in coaching_plan.obsolete_skills %}
+            <li>
+                <strong>{{ obsolete.skill }}</strong>: {{ obsolete.reason }}
+                <br><small>Try instead: {% for alt in obsolete.suggested_alternatives %}<span class="badge badge-info">{{ alt }}</span>{% endfor %}</small>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Emerging Trends -->
+    {% if coaching_plan.emerging_trends %}
+    <h2 class="mt-5">🚀 Emerging Trends to Watch</h2>
+    <div class="row">
+        {% for trend in coaching_plan.emerging_trends %}
+        <div class="col-md-6 mb-3">
+            <div class="card border-{% if trend.impact_on_role == 'increase' %}success{% elif trend.impact_on_role == 'decrease' %}danger{% else %}info{% endif %}">
+                <div class="card-body">
+                    <h6 class="card-title">{{ trend.trend }}</h6>
+                    <p class="card-text">{{ trend.why }}</p>
+                    <small class="text-muted">
+                        Look for signals:
+                        {% for signal in trend.verification_signals %}
+                        <span class="badge badge-light">{{ signal|replace('-', ' ')|title }}</span>
+                        {% endfor %}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Study Schedule -->
+    <h2 class="mt-5">📅 Weekly Study Schedule ({{ coaching_plan.study_schedule.duration_weeks }} weeks)</h2>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Week</th>
+                    <th>Hours/Week</th>
+                    <th>Focus Areas</th>
+                    <th>Key Tasks</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for week in coaching_plan.study_schedule.weekly_plan %}
+                <tr>
+                    <td><strong>{{ week.week }}</strong></td>
+                    <td>{{ week.hours }}h</td>
+                    <td>
+                        {% for topic in week.focus %}
+                        <span class="badge badge-info">{{ topic }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% for task in week.tasks %}
+                        <small class="d-block">• {{ task }}</small>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Progress Tracking -->
+    <h2 class="mt-5">📊 Progress Tracking</h2>
+    <div class="card">
+        <div class="card-body">
+            <p><strong>Recommended Check-in Frequency:</strong> Every {{ coaching_plan.tracking_hooks.suggested_check_in_frequency_days }} days</p>
+            <p><strong>Tracking Metrics:</strong></p>
+            <ul>
+                {% for metric_id in coaching_plan.tracking_hooks.progress_metric_ids %}
+                <li>{{ metric_id }}</li>
+                {% endfor %}
+            </ul>
+            <p class="text-muted"><small>Log your progress regularly to stay motivated and on track!</small></p>
+        </div>
+    </div>
+
+    <!-- LLM Insights (if available) -->
+    {% if coaching_plan.llm_insights %}
+    <div class="alert alert-success mt-4" role="alert">
+        <h4 class="alert-heading">🤖 AI-Enhanced Insights</h4>
+        <p>{{ coaching_plan.llm_insights }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="mt-5 mb-5">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+        <button class="btn btn-primary" onclick="downloadPlan()">📥 Download Plan (PDF)</button>
+    </div>
+</div>
+
+<script>
+function markMilestoneComplete(milestoneId) {
+    const coachingPlanId = {{ plan_id }};
+    
+    fetch(`/api/coach/${coachingPlanId}/milestone/${milestoneId}/progress`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            task_index: 0,
+            status: 'completed',
+            validation_evidence: {}
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('Great job! Milestone marked as complete.');
+            location.reload();
+        } else {
+            alert('Error updating progress: ' + data.error);
+        }
+    });
+}
+
+function downloadPlan() {
+    alert('PDF download feature coming soon! For now, use your browser\'s print function to save as PDF.');
+}
+</script>
+
+<style>
+    .progress {
+        background-color: #e9ecef;
+    }
+    .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .btn-link {
+        text-decoration: none;
+        color: #007bff;
+    }
+    .badge {
+        padding: 0.5em 0.75em;
+    }
+</style>
+{% endblock %}
