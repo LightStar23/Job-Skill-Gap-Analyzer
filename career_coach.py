@@ -189,7 +189,15 @@ class AICareerCoach:
         if OPENAI_AVAILABLE:
             api_key = os.getenv("OPENAI_API_KEY")
             if api_key:
-                self.openai_client = OpenAI(api_key=api_key)
+                try:
+                    self.openai_client = OpenAI(api_key=api_key)
+                except TypeError as e:
+                    # Handle httpx/OpenAI compatibility issue
+                    if "proxies" in str(e):
+                        print("Warning: OpenAI client initialization failed (httpx compatibility issue). Using rule-based coaching only.")
+                        self.openai_client = None
+                    else:
+                        raise
     
     def generate_coaching_plan(self, user_profile: Dict[str, Any], skill_gap: Dict[str, Any]) -> Dict[str, Any]:
         """

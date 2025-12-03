@@ -40,7 +40,7 @@ class Analysis(db.Model):
 
 class CoachingPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    analysis_id = db.Column(db.Integer, db.ForeignKey('analysis.id'), nullable=False)
+    analysis_id = db.Column(db.Integer, db.ForeignKey('analysis.id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     target_role = db.Column(db.String(200), nullable=False)
     current_role = db.Column(db.String(200))

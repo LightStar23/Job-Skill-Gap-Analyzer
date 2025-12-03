@@ -161,6 +161,76 @@ def view_analysis(analysis_id):
 def analyze_page():
     return render_template('analyze.html')
 
+@app.route('/coach/generate/<int:analysis_id>', methods=['POST'])
+@login_required
+def generate_coaching_plan_form(analysis_id):
+    """Generate coaching plan from analysis and redirect to dashboard."""
+    try:
+        # Get the analysis
+        analysis = Analysis.query.filter_by(id=analysis_id, user_id=current_user.id).first_or_404()
+        analysis_results = json.loads(analysis.analysis_results)
+        
+        # Extract skill gap data
+        skill_gap = {
+            "score": analysis_results.get("match_score", 0),
+            "gaps": [
+                {
+                    "skill": skill,
+                    "importance": 0.8,
+                    "current_level": 3,
+                    "gap": 5
+                }
+                for skill in analysis_results.get("missing_skills", [])
+            ],
+            "strengths": analysis_results.get("matching_skills", [])
+        }
+        
+        # Build user profile
+        user_profile = {
+            "id": str(current_user.id),
+            "name": current_user.first_name or "User",
+            "current_role": None,
+            "target_role": analysis.job_title,
+            "experience_years": 0,
+            "availability_per_week_hours": 10,
+            "preferred_learning_style": "projects",
+            "budget_level": "free",
+            "soft_skills": []
+        }
+        
+        # Generate coaching plan using the AI Coach
+        coaching_plan = coach.generate_coaching_plan(user_profile, skill_gap)
+        
+        if "error" in coaching_plan:
+            flash(f"Error generating coaching plan: {coaching_plan['error']}", "error")
+            return redirect(url_for('analysis_detail', analysis_id=analysis_id))
+        
+        # Save to database
+        db_coaching_plan = CoachingPlan(
+            user_id=current_user.id,
+            analysis_id=analysis_id,
+            target_role=user_profile["target_role"],
+            current_role=user_profile["current_role"],
+            experience_years=user_profile["experience_years"],
+            availability_per_week_hours=user_profile["availability_per_week_hours"],
+            preferred_learning_style=user_profile["preferred_learning_style"],
+            budget_level=user_profile["budget_level"],
+            coaching_data=json.dumps(coaching_plan),
+            confidence_score=coaching_plan.get("confidence", 0.5),
+            current_milestone_id="m1",
+            milestones_completed=json.dumps([])
+        )
+        
+        db.session.add(db_coaching_plan)
+        db.session.commit()
+        
+        flash(f"✨ Coaching plan generated successfully!", "success")
+        return redirect(url_for('view_coaching_plan', coaching_plan_id=db_coaching_plan.id))
+        
+    except Exception as e:
+        flash(f"Error generating coaching plan: {str(e)}", "error")
+        return redirect(url_for('analysis_detail', analysis_id=analysis_id))
+
 # ===== AI Career Coach Endpoints =====
 
 @app.route('/api/coach/generate', methods=['POST'])
@@ -214,7 +284,7 @@ def generate_coaching_plan():
         # Build user profile
         user_profile = {
             "id": str(current_user.id),
-            "name": current_user.first_name,
+            "name": current_user.first_name or "User",
             "current_role": data.get("current_role"),
             "target_role": data.get("target_role"),
             "experience_years": data.get("experience_years", 0),
@@ -356,6 +426,121 @@ def update_milestone_progress(coaching_plan_id, milestone_id):
     
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/coach/<int:coaching_plan_id>/download-pdf', methods=['GET'])
+@login_required
+def download_coaching_plan_pdf(coaching_plan_id):
+    """Download coaching plan as PDF."""
+    from io import BytesIO
+    try:
+        # Import reportlab
+        try:
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+            from reportlab.lib import colors
+        except ImportError:
+            # If reportlab not available, use simple approach
+            return generate_text_pdf(coaching_plan_id)
+        
+        # Get coaching plan
+        plan = CoachingPlan.query.filter_by(id=coaching_plan_id, user_id=current_user.id).first_or_404()
+        coaching_data = json.loads(plan.coaching_data)
+        completed = json.loads(plan.milestones_completed)
+        progress = coach.calculate_overall_progress(coaching_data, completed)
+        
+        # Create PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#667eea'),
+            spaceAfter=10,
+            alignment=1
+        )
+        elements.append(Paragraph("🎯 Your Personalized Coaching Plan", title_style))
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Summary
+        elements.append(Paragraph(f"<b>Summary:</b> {coaching_data.get('summary', '')}", styles['Normal']))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Progress
+        elements.append(Paragraph(f"<b>Overall Progress:</b> {progress.get('progress_percentage', 0)}%", styles['Normal']))
+        elements.append(Paragraph(f"<b>Milestones Completed:</b> {len(progress.get('completed_milestones', []))} of {progress.get('total_milestones', 0)}", styles['Normal']))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Coach's Message
+        elements.append(Paragraph("<b>Coach's Message:</b>", styles['Heading2']))
+        elements.append(Paragraph(coaching_data.get('human_message', ''), styles['Normal']))
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Milestones
+        elements.append(Paragraph("Learning Path Milestones", styles['Heading2']))
+        for idx, milestone in enumerate(coaching_data.get('prioritized_path', []), 1):
+            elements.append(Paragraph(f"<b>Milestone {idx}: {milestone.get('title', '')}</b>", styles['Heading3']))
+            elements.append(Paragraph(f"Duration: {milestone.get('time_estimate_weeks')} weeks", styles['Normal']))
+            elements.append(Paragraph(f"Why: {milestone.get('why', '')}", styles['Normal']))
+            
+            skills = ", ".join(milestone.get('skills_targeted', []))
+            if skills:
+                elements.append(Paragraph(f"Skills: {skills}", styles['Normal']))
+            
+            elements.append(Spacer(1, 0.1*inch))
+        
+        # Build PDF
+        doc.build(elements)
+        buffer.seek(0)
+        
+        # Return PDF
+        return app.response_class(
+            response=buffer.getvalue(),
+            status=200,
+            mimetype="application/pdf",
+            headers={"Content-Disposition": "attachment;filename=coaching-plan.pdf"}
+        )
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def generate_text_pdf(coaching_plan_id):
+    """Fallback: Generate PDF using simple method when reportlab not available."""
+    from io import BytesIO
+    
+    plan = CoachingPlan.query.filter_by(id=coaching_plan_id, user_id=current_user.id).first_or_404()
+    coaching_data = json.loads(plan.coaching_data)
+    
+    # Create simple text format
+    text_content = "COACHING PLAN\n"
+    text_content += "=" * 50 + "\n\n"
+    text_content += f"Summary: {coaching_data.get('summary', '')}\n\n"
+    text_content += f"Coach's Message:\n{coaching_data.get('human_message', '')}\n\n"
+    text_content += "MILESTONES:\n"
+    
+    for idx, milestone in enumerate(coaching_data.get('prioritized_path', []), 1):
+        text_content += f"\n{idx}. {milestone.get('title', '')}\n"
+        text_content += f"   Duration: {milestone.get('time_estimate_weeks')} weeks\n"
+        text_content += f"   Why: {milestone.get('why', '')}\n"
+        text_content += f"   Skills: {', '.join(milestone.get('skills_targeted', []))}\n"
+    
+    # Convert to PDF using browser's print functionality recommendation
+    buffer = BytesIO()
+    buffer.write(text_content.encode('utf-8'))
+    buffer.seek(0)
+    
+    return app.response_class(
+        response=buffer.getvalue(),
+        status=200,
+        mimetype="text/plain",
+        headers={"Content-Disposition": "attachment;filename=coaching-plan.txt"}
+    )
 
 @app.route('/api/coach/list', methods=['GET'])
 @login_required

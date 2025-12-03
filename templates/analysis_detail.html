@@ -120,6 +120,11 @@
     {% endif %}
 
     <div style="text-align: center; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+        <form method="POST" action="{{ url_for('generate_coaching_plan_form', analysis_id=analysis.id) }}" style="display: inline;">
+            <button type="submit" class="btn" style="margin-right: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                <i class="fas fa-magic"></i> Generate AI Coaching Plan
+            </button>
+        </form>
         <a href="{{ url_for('analyze_page') }}" class="btn" style="margin-right: 1rem;">
             <i class="fas fa-plus"></i> New Analysis
         </a>
