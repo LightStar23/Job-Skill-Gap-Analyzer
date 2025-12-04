@@ -1,15 +1,17 @@
-# skill_analyzer.py
+# skill_analyzer.py - COMPLETE WORKING VERSION
 import spacy
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import re
+import sqlite3
+import json
+from job_market import job_market
 
 class SkillGapAnalyzer:
     def __init__(self):
         # Load spaCy model
         self.nlp = spacy.load("en_core_web_sm")
         
-        # Enhanced skill database - we'll start with this and expand later
+        # Enhanced skill database
         self.skill_database = {
             "programming": {"python", "java", "javascript", "c++", "c#", "ruby", "go", "rust", "swift", "kotlin"},
             "web_frameworks": {"django", "flask", "react", "angular", "vue", "spring", "express", "laravel"},
@@ -46,15 +48,57 @@ class SkillGapAnalyzer:
         
         return list(found_skills)
     
+    def get_gap_bridge(self, skill_name):
+        """Get gap bridge data for a skill from SQLite database"""
+        try:
+            conn = sqlite3.connect('skill_analyzer.db')
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "SELECT skill_name, free_resources, project_ideas, time_to_beginner FROM skill_recommendations WHERE skill_name = ?", 
+                (skill_name,)
+            )
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                # Parse JSON data
+                free_resources = json.loads(row['free_resources']) if row['free_resources'] else []
+                project_ideas = json.loads(row['project_ideas']) if row['project_ideas'] else []
+                
+                return {
+                    'skill': row['skill_name'],
+                    'resources': free_resources[:3],  # Top 3 resources
+                    'projects': project_ideas[:2],     # Top 2 projects
+                    'time_required': row['time_to_beginner'],
+                    'weeks_needed': round(row['time_to_beginner'] / 5, 1)
+                }
+        except Exception as e:
+            print(f"Note: Error getting gap bridge for {skill_name}: {e}")
+            # If skill not in database, return basic plan
+        
+        # Fallback plan if skill not found
+        return {
+            'skill': skill_name,
+            'resources': [
+                {'name': f'Learn {skill_name} - Documentation', 'url': f'https://www.google.com/search?q=learn+{skill_name}'},
+                {'name': f'{skill_name} Tutorial', 'url': f'https://www.youtube.com/results?search_query={skill_name}+tutorial'}
+            ],
+            'projects': [
+                {'title': f'Basic {skill_name} Project', 'description': f'Create a simple project using {skill_name}'},
+                {'title': f'Advanced {skill_name} Application', 'description': f'Build a complete application with {skill_name}'}
+            ],
+            'time_required': 30,
+            'weeks_needed': 6
+        }
+    
     def analyze_gap(self, job_description, resume_text):
         """Main analysis function - compares JD vs Resume"""
-        print("🔍 Extracting skills from Job Description...")
+        # Extract skills
         jd_skills = self.extract_skills(job_description)
-        print(f"   Found {len(jd_skills)} skills: {jd_skills}")
-        
-        print("🔍 Extracting skills from Resume...")
         resume_skills = self.extract_skills(resume_text)
-        print(f"   Found {len(resume_skills)} skills: {resume_skills}")
         
         # Calculate match score using TF-IDF and Cosine Similarity
         if jd_skills or resume_skills:
@@ -96,6 +140,25 @@ class SkillGapAnalyzer:
                     categorized_gaps["other"] = []
                 categorized_gaps["other"].append(skill)
         
+        # NEW: Generate gap bridge plans
+        gap_bridge_plans = []
+        for skill in missing_skills:
+            plan = self.get_gap_bridge(skill)
+            gap_bridge_plans.append(plan)
+        
+        # Calculate summary
+        if gap_bridge_plans:
+            total_hours = sum(p['time_required'] for p in gap_bridge_plans)
+            total_weeks = sum(p['weeks_needed'] for p in gap_bridge_plans)
+            gap_summary = {
+                'total_skills': len(gap_bridge_plans),
+                'total_hours': total_hours,
+                'total_weeks': round(total_weeks, 1),
+                'weekly_commitment': 5
+            }
+        else:
+            gap_summary = None
+        
         return {
             "match_score": match_score,
             "jd_skills": jd_skills,
@@ -103,6 +166,8 @@ class SkillGapAnalyzer:
             "matching_skills": list(matching_skills),
             "missing_skills": list(missing_skills),
             "categorized_gaps": categorized_gaps,
+            "gap_bridge_plans": gap_bridge_plans,
+            "gap_summary": gap_summary,
             "match_interpretation": self.interpret_match_score(match_score)
         }
     
@@ -116,42 +181,121 @@ class SkillGapAnalyzer:
             return "Moderate match. Consider developing some key missing skills."
         else:
             return "Low match. Significant skill development needed."
+    
+    # Add at the top of skill_analyzer.py
+from job_market import job_market
 
+# Then in the SkillGapAnalyzer class, add this method:
+def analyze_with_market_pulse(self, job_description, resume_text, location="Worldwide"):
+    """Analyze skills with job market insights"""
+    # Get basic analysis
+    basic_analysis = self.analyze_gap(job_description, resume_text)
+    
+    # Get job market data for all skills found
+    all_skills = list(set(basic_analysis['jd_skills'] + basic_analysis['resume_skills']))
+    
+    if all_skills:
+        market_data = job_market.get_multiple_skills_demand(all_skills, location)
+        
+        # Add market data to results
+        basic_analysis['job_market_pulse'] = {
+            'demand_data': market_data,
+            'salary_estimates': {},
+            'trending_skills': job_market.get_trending_skills(),
+            'market_insights': self.generate_market_insights(basic_analysis, market_data)
+        }
+        
+        # Add salary estimates for matching skills
+        for skill in basic_analysis['matching_skills']:
+            basic_analysis['job_market_pulse']['salary_estimates'][skill] = \
+                job_market.get_salary_estimate(skill, experience_years=3, location=location)
+    
+    return basic_analysis
 
+def generate_market_insights(self, analysis, market_data):
+    """Generate market insights from analysis"""
+    insights = []
+    
+    # Insight 1: High demand missing skills
+    for skill in analysis['missing_skills']:
+        if skill in market_data['skills']:
+            skill_data = market_data['skills'][skill]
+            if skill_data['hotness_score'] > 70:
+                insights.append({
+                    'type': 'high_demand_gap',
+                    'skill': skill,
+                    'message': f"🔥 {skill} is in HIGH demand ({skill_data['job_count']:,} jobs) - prioritize learning this!",
+                    'priority': 'high'
+                })
+    
+    # Insight 2: User's valuable skills
+    for skill in analysis['matching_skills']:
+        if skill in market_data['skills']:
+            skill_data = market_data['skills'][skill]
+            if skill_data['hotness_score'] > 80:
+                insights.append({
+                    'type': 'valuable_skill',
+                    'skill': skill,
+                    'message': f"💎 You have {skill} which is highly valuable (${skill_data['avg_salary_max']:,}+ potential)",
+                    'priority': 'info'
+                })
+    
+    # Insight 3: Market trends
+    if market_data.get('trending_skills'):
+        top_trend = market_data['trending_skills'][0]
+        insights.append({
+            'type': 'market_trend',
+            'skill': top_trend['skill'],
+            'message': f"📈 {top_trend['skill']} is trending ({top_trend['growth_rate']}% growth)",
+            'priority': 'medium'
+        })
+    
+    return insights
 
-# # Test function
-# def test_analyzer():
-#     print("🧪 Testing Skill Gap Analyzer...")
-    
-#     analyzer = SkillGapAnalyzer()
-    
-    # # Sample test data
-    # sample_jd = """
-    # We are looking for a Python developer with strong experience in web development using Django or Flask.
-    # Required skills: Python, Django, REST APIs, SQL, Git.
-    # Nice to have: JavaScript, React, AWS, Docker.
-    # """
-    
-    # sample_resume = """
-    # Experienced software developer with 3 years in Python programming.
-    # Proficient in Flask framework and REST API development.
-    # Strong knowledge of Git version control and basic SQL.
-    # Some experience with JavaScript and web development.
-    # """
-    
-#     results = analyzer.analyze_gap(sample_jd, sample_resume)
-    
-#     print("\n" + "="*50)
-#     print("📊 ANALYSIS RESULTS")
-#     print("="*50)
-#     print(f"Overall Match Score: {results['match_score']}%")
-#     print(f"Interpretation: {results['match_interpretation']}")
-#     print(f"\n✅ Matching Skills: {results['matching_skills']}")
-#     print(f"❌ Missing Skills: {results['missing_skills']}")
-    
-#     print("\n📁 Categorized Skill Gaps:")
-#     for category, skills in results['categorized_gaps'].items():
-#         print(f"   {category.title()}: {skills}")
+# ====== IMPORTANT: Create global analyzer instance ======
+# This line creates the 'analyzer' variable that app.py imports
+analyzer = SkillGapAnalyzer()
 
-# if __name__ == "__main__":
-#     test_analyzer()
+# Test function (optional - only runs if you run this file directly)
+def test_analyzer():
+    print("🧪 Testing Skill Gap Analyzer with Gap Bridge...")
+    
+    # Sample test data
+    sample_jd = """
+    We are looking for a Python developer with strong experience in web development using Django or Flask.
+    Required skills: Python, Django, REST APIs, SQL, Git.
+    Nice to have: JavaScript, React, AWS, Docker.
+    """
+    
+    sample_resume = """
+    Experienced software developer with 3 years in Python programming.
+    Proficient in Flask framework and REST API development.
+    Strong knowledge of Git version control and basic SQL.
+    Some experience with JavaScript and web development.
+    """
+    
+    results = analyzer.analyze_gap(sample_jd, sample_resume)
+    
+    print("\n" + "="*50)
+    print("📊 ANALYSIS RESULTS")
+    print("="*50)
+    print(f"Overall Match Score: {results['match_score']}%")
+    print(f"Interpretation: {results['match_interpretation']}")
+    print(f"\n✅ Matching Skills: {results['matching_skills']}")
+    print(f"❌ Missing Skills: {results['missing_skills']}")
+    
+    if results['gap_bridge_plans']:
+        print("\n🚀 GAP BRIDGE PLANS GENERATED:")
+        for plan in results['gap_bridge_plans']:
+            print(f"\n📚 {plan['skill']}:")
+            print(f"   Time needed: {plan['time_required']} hours ({plan['weeks_needed']} weeks)")
+            print(f"   Resources: {len(plan['resources'])}")
+            print(f"   Projects: {len(plan['projects'])}")
+    
+    print("\n📁 Categorized Skill Gaps:")
+    for category, skills in results['categorized_gaps'].items():
+        print(f"   {category.title()}: {skills}")
+
+# Only run test if this file is executed directly
+if __name__ == "__main__":
+    test_analyzer()

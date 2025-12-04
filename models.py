@@ -34,3 +34,39 @@ class Analysis(db.Model):
     match_score = db.Column(db.Float, nullable=False)
     analysis_results = db.Column(db.Text)  # JSON string of full results
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# New Modifications
+# models.py - ADD THESE NEW MODELS AT THE BOTTOM
+class SkillRecommendation(db.Model):
+    """Skill recommendations for gap bridge"""
+    __tablename__ = 'skill_recommendations'
+    __bind_key__ = 'skill_analyzer'  # Use different database
+    
+    id = db.Column(db.Integer, primary_key=True)
+    skill_name = db.Column(db.String(100), nullable=False)
+    category = db.Column(db.String(50))
+    free_resources = db.Column(db.Text)  # JSON stored as Text
+    project_ideas = db.Column(db.Text)   # JSON stored as Text
+    time_to_beginner = db.Column(db.Integer, default=20)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class UserLearningPlan(db.Model):
+    """User's saved learning plans"""
+    __tablename__ = 'user_learning_plans'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    skill_name = db.Column(db.String(100), nullable=False)
+    selected_resources = db.Column(db.Text)  # JSON stored as Text
+    selected_projects = db.Column(db.Text)   # JSON stored as Text
+    current_progress = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default='not_started')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship
+    user = db.relationship('User', backref=db.backref('learning_plans', lazy=True))
+
+# Add this relationship to User class
+# In the User class, add:
+# learning_plans = db.relationship('UserLearningPlan', backref='user_rel', lazy=True)

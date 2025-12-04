@@ -1,10 +1,9 @@
-# app.py
+# app.py - MINIMAL WORKING VERSION
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, bcrypt, User, Analysis
-from skill_analyzer import SkillGapAnalyzer
+from skill_analyzer import analyzer  # This imports the 'analyzer' variable
 import json
-import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
@@ -24,9 +23,6 @@ login_manager.login_message = 'Please log in to access this page.'
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-# Initialize our analyzer
-analyzer = SkillGapAnalyzer()
 
 # Routes
 @app.route('/')
@@ -123,7 +119,7 @@ def analyze():
         if not job_description or not resume_text:
             return jsonify({'error': 'Please provide both job description and resume text'})
         
-        # Perform analysis
+        # Perform analysis - analyzer.analyze_gap() now returns gap bridge plans too
         results = analyzer.analyze_gap(job_description, resume_text)
         
         # Save analysis to database
@@ -134,7 +130,7 @@ def analyze():
             job_description=job_description,
             resume_text=resume_text,
             match_score=results['match_score'],
-            analysis_results=json.dumps(results)
+            analysis_results=json.dumps(results)  # Now includes gap_bridge_plans
         )
         db.session.add(analysis)
         db.session.commit()
@@ -161,6 +157,7 @@ def analyze_page():
 # Initialize database
 with app.app_context():
     db.create_all()
+    print("✅ Main database tables created")
 
 if __name__ == '__main__':
     app.run(debug=True)

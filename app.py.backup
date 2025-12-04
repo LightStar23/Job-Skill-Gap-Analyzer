@@ -1,0 +1,186 @@
+# app.py - UPDATED VERSION
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from models import db, bcrypt, User, Analysis
+from skill_analyzer import analyzer
+import json
+import sqlite3
+from datetime import datetime
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///job_analyzer.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# REMOVED: app.config['SQLALCHEMY_BINDS'] 
+
+# Initialize extensions
+db.init_app(app)
+bcrypt.init_app(app)
+
+# Login manager setup
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Helper function for skill_analyzer.db (gap bridge database)
+def get_gap_bridge_connection():
+    """Get connection to skill_analyzer.db"""
+    conn = sqlite3.connect('skill_analyzer.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def get_skill_bridge(skill_name):
+    """Get gap bridge data for a specific skill"""
+    conn = get_gap_bridge_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT * FROM skill_recommendations WHERE skill_name = ?", 
+        (skill_name,)
+    )
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        import json
+        return {
+            'skill_name': row['skill_name'],
+            'category': row['category'],
+            'free_resources': json.loads(row['free_resources']) if row['free_resources'] else [],
+            'project_ideas': json.loads(row['project_ideas']) if row['project_ideas'] else [],
+            'time_to_beginner': row['time_to_beginner']
+        }
+    return None
+
+def generate_gap_bridge_plans(missing_skills):
+    """Generate gap bridge plans for missing skills"""
+    plans = []
+    
+    for skill in missing_skills:
+        bridge_data = get_skill_bridge(skill)
+        if bridge_data:
+            plan = {
+                'skill': skill,
+                'resources': bridge_data['free_resources'][:3],
+                'projects': bridge_data['project_ideas'][:2],
+                'time_required': bridge_data['time_to_beginner'],
+                'weekly_hours': 5,
+                'weeks_needed': round(bridge_data['time_to_beginner'] / 5, 1)
+            }
+            plans.append(plan)
+    
+    # Calculate summary
+    if plans:
+        total_hours = sum(p['time_required'] for p in plans)
+        total_weeks = sum(p['weeks_needed'] for p in plans)
+        
+        return {
+            'plans': plans,
+            'summary': {
+                'total_skills': len(plans),
+                'total_hours': total_hours,
+                'total_weeks': round(total_weeks, 1),
+                'weekly_commitment': 5
+            }
+        }
+    return None
+
+# Existing routes remain the same until...
+
+@app.route('/analyze', methods=['POST'])
+@login_required
+def analyze():
+    try:
+        job_description = request.form.get('job_description', '')
+        resume_text = request.form.get('resume_text', '')
+        job_title = request.form.get('job_title', 'Untitled Position')
+        company = request.form.get('company', '')
+        
+        if not job_description or not resume_text:
+            return jsonify({'error': 'Please provide both job description and resume text'})
+        
+        # Perform analysis
+        results = analyzer.analyze_gap(job_description, resume_text)
+        
+        # NEW: Add gap bridge plans to results
+        if results['missing_skills']:
+            results['gap_bridge_plans'] = generate_gap_bridge_plans(results['missing_skills'])
+        
+        # Save analysis to database
+        analysis = Analysis(
+            user_id=current_user.id,
+            job_title=job_title,
+            company=company,
+            job_description=job_description,
+            resume_text=resume_text,
+            match_score=results['match_score'],
+            analysis_results=json.dumps(results)  # Now includes gap_bridge_plans
+        )
+        db.session.add(analysis)
+        db.session.commit()
+        
+        results['analysis_id'] = analysis.id
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        return jsonify({'error': f'Analysis failed: {str(e)}'})
+
+# NEW ROUTES FOR GAP BRIDGE
+
+@app.route('/gap-bridge/<skill_name>')
+@login_required
+def get_skill_gap_bridge(skill_name):
+    """Get detailed gap bridge for a specific skill"""
+    bridge_data = get_skill_bridge(skill_name)
+    if bridge_data:
+        return jsonify(bridge_data)
+    return jsonify({'error': 'Skill not found in database'}), 404
+
+@app.route('/save-learning-plan', methods=['POST'])
+@login_required
+def save_learning_plan():
+    """Save a learning plan for a skill (simplified - just store in session)"""
+    try:
+        data = request.get_json()
+        skill_name = data.get('skill_name')
+        selected_resources = data.get('selected_resources', [])
+        selected_projects = data.get('selected_projects', [])
+        
+        # Initialize session plans if not exists
+        if 'learning_plans' not in session:
+            session['learning_plans'] = {}
+        
+        # Save plan in session
+        session['learning_plans'][skill_name] = {
+            'resources': selected_resources,
+            'projects': selected_projects,
+            'created_at': datetime.now().isoformat()
+        }
+        session.modified = True
+        
+        return jsonify({'success': True, 'message': 'Learning plan saved!'})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/my-learning-plans')
+@login_required
+def my_learning_plans():
+    """View user's saved learning plans"""
+    plans = session.get('learning_plans', {})
+    return render_template('learning_plans.html', plans=plans)
+
+# Initialize database - ONLY main database
+with app.app_context():
+    db.create_all()
+    print("✅ Main database tables created")
+
+if __name__ == '__main__':
+    app.run(debug=True)
