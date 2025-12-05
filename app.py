@@ -7,11 +7,23 @@ from career_coach import AICareerCoach
 import json
 import os
 from datetime import datetime
+from werkzeug.utils import secure_filename
+from PyPDF2 import PdfReader
+from docx import Document
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///job_analyzer.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
+
+# Create uploads folder if it doesn't exist
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+# Allowed file extensions
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
 
 # Initialize extensions
 db.init_app(app)
@@ -26,6 +38,69 @@ login_manager.login_message = 'Please log in to access this page.'
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# ===== FILE HANDLING UTILITIES =====
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def extract_text_from_file(filepath):
+    """Extract text from PDF, DOCX, DOC, or TXT files"""
+    try:
+        filename = secure_filename(os.path.basename(filepath))
+        file_ext = filename.rsplit('.', 1)[1].lower()
+        
+        text = ""
+        
+        if file_ext == 'pdf':
+            # Extract text from PDF
+            try:
+                with open(filepath, 'rb') as file:
+                    pdf_reader = PdfReader(file)
+                    for page in pdf_reader.pages:
+                        text += page.extract_text() + "\n"
+            except Exception as e:
+                return None, f"Error reading PDF: {str(e)}"
+        
+        elif file_ext in ['docx']:
+            # Extract text from DOCX
+            try:
+                doc = Document(filepath)
+                for para in doc.paragraphs:
+                    text += para.text + "\n"
+                for table in doc.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            text += cell.text + " "
+                    text += "\n"
+            except Exception as e:
+                return None, f"Error reading DOCX: {str(e)}"
+        
+        elif file_ext in ['doc']:
+            # For .doc files, we can try to read as text or use python-docx
+            # For now, we'll ask user to convert to DOCX or use TXT
+            return None, "Please save your .doc file as .docx format for better compatibility"
+        
+        elif file_ext == 'txt':
+            # Read plain text file
+            try:
+                with open(filepath, 'r', encoding='utf-8') as file:
+                    text = file.read()
+            except UnicodeDecodeError:
+                try:
+                    with open(filepath, 'r', encoding='latin-1') as file:
+                        text = file.read()
+                except Exception as e:
+                    return None, f"Error reading TXT file: {str(e)}"
+        
+        if not text.strip():
+            return None, "The file appears to be empty or could not be read"
+        
+        return text, None
+    
+    except Exception as e:
+        return None, f"Error processing file: {str(e)}"
 
 # Initialize our analyzer
 analyzer = SkillGapAnalyzer()
@@ -113,6 +188,54 @@ def dashboard():
         .limit(5)\
         .all()
     return render_template('dashboard.html', analyses=recent_analyses)
+
+@app.route('/upload-file', methods=['POST'])
+@login_required
+def upload_file():
+    """Handle file upload for resume or job description"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        file_type = request.form.get('file_type', '')  # 'resume' or 'job_description'
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file type. Allowed: PDF, DOCX, DOC, TXT'}), 400
+        
+        # Save file temporarily
+        filename = secure_filename(file.filename)
+        timestamp = int(datetime.utcnow().timestamp())
+        filename = f"{timestamp}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        file.save(filepath)
+        
+        # Extract text from file
+        text, error = extract_text_from_file(filepath)
+        
+        if error:
+            os.remove(filepath)
+            return jsonify({'error': error}), 400
+        
+        # Clean up the temporary file
+        try:
+            os.remove(filepath)
+        except:
+            pass
+        
+        return jsonify({
+            'success': True,
+            'text': text,
+            'file_type': file_type,
+            'filename': file.filename
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': f'File upload failed: {str(e)}'}), 500
 
 @app.route('/analyze', methods=['POST'])
 @login_required

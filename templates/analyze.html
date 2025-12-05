@@ -46,6 +46,13 @@
                 <textarea id="job_description" name="job_description"
                     placeholder="Paste the complete job description here...&#10;&#10;Example:&#10;We're looking for a Python developer with Django experience.&#10;Required: Python, SQL, REST APIs&#10;Nice to have: AWS, Docker, React"
                     required></textarea>
+                <input type="file" id="jobDescFile" accept=".pdf,.docx,.doc,.txt" style="display: none;">
+                <button type="button" class="btn btn-secondary" id="uploadJobBtn"
+                    style="padding: 0.5rem 1rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-upload"></i> Upload PDF/DOC
+                </button>
+                <small style="color: var(--text-secondary); margin-top: 0.25rem; display: block;">Or upload a PDF, DOCX,
+                    or TXT file</small>
             </div>
 
             <div class="form-group">
@@ -53,6 +60,13 @@
                 <textarea id="resume_text" name="resume_text"
                     placeholder="Paste your resume text here...&#10;&#10;Example:&#10;Experienced software developer with 3 years in Python.&#10;Proficient in Flask and REST API development.&#10;Strong knowledge of Git and SQL."
                     required></textarea>
+                <input type="file" id="resumeFile" accept=".pdf,.docx,.doc,.txt" style="display: none;">
+                <button type="button" class="btn btn-secondary" id="uploadResumeBtn"
+                    style="padding: 0.5rem 1rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-upload"></i> Upload PDF/DOC
+                </button>
+                <small style="color: var(--text-secondary); margin-top: 0.25rem; display: block;">Or upload a PDF, DOCX,
+                    or TXT file</small>
             </div>
 
             <button type="submit" id="analyzeBtn" class="btn" style="width: 100%; justify-content: center;">
@@ -117,6 +131,83 @@
 
 {% block scripts %}
 <script>
+    // File upload handlers
+    document.getElementById('uploadResumeBtn').addEventListener('click', function () {
+        document.getElementById('resumeFile').click();
+    });
+
+    document.getElementById('uploadJobBtn').addEventListener('click', function () {
+        document.getElementById('jobDescFile').click();
+    });
+
+    document.getElementById('resumeFile').addEventListener('change', async function (e) {
+        await handleFileUpload(this, 'resume_text', 'resume');
+    });
+
+    document.getElementById('jobDescFile').addEventListener('change', async function (e) {
+        await handleFileUpload(this, 'job_description', 'job_description');
+    });
+
+    async function handleFileUpload(fileInput, textAreaId, fileType) {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const uploadBtn = fileType === 'resume' ?
+            document.getElementById('uploadResumeBtn') :
+            document.getElementById('uploadJobBtn');
+
+        const originalBtnText = uploadBtn.innerHTML;
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('file_type', fileType);
+
+            const response = await fetch('/upload-file', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                fileInput.value = '';
+                return;
+            }
+
+            if (data.success) {
+                // Insert text into the textarea
+                const textArea = document.getElementById(textAreaId);
+                textArea.value = data.text;
+
+                // Show success message
+                const msg = fileType === 'resume' ?
+                    `Resume uploaded successfully! (${data.filename})` :
+                    `Job description uploaded successfully! (${data.filename})`;
+
+                // Create a temporary success message
+                const errorDiv = document.getElementById('error');
+                errorDiv.style.display = 'block';
+                errorDiv.style.backgroundColor = '#10b981';
+                errorDiv.textContent = '✓ ' + msg;
+                setTimeout(() => {
+                    errorDiv.style.display = 'none';
+                    errorDiv.style.backgroundColor = '';
+                }, 3000);
+            }
+        } catch (err) {
+            alert('Upload failed: ' + err.message);
+            fileInput.value = '';
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = originalBtnText;
+        }
+    }
+
+    // Original analysis form handler
     document.getElementById('analysisForm').addEventListener('submit', async function (e) {
         e.preventDefault();
 
